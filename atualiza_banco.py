@@ -239,102 +239,105 @@ def processar_arquivo_excel(caminho_completo, nome_arquivo):
         enviar_alerta_n8n(msg, str(e))
         return False
 
-# --- ORQUESTRADOR PRINCIPAL ---
+# --- ORQUESTRADOR PRINCIPAL (MONITORAMENTO CONTÍNUO) ---
 
 def main():
-    print("🚀 Iniciando rotina de automação SFTP para PostgreSQL...")
+    intervalo = int(obter_env("MONITOR_INTERVALO_SEGUNDOS", "30"))
+    print(f"🚀 Iniciando rotina de monitoramento contínuo do SFTP (Checando a cada {intervalo} segundos)...")
     
-    # Certifica-se de que a pasta temporária exista
-    if not os.path.exists(PASTA_TEMP_LOCAL):
-        os.makedirs(PASTA_TEMP_LOCAL)
-        
-    historico = carregar_historico()
-    ssh = None
-    arquivos_processados = []
-
-    try:
-        # 1. Conexão SFTP
-        ssh = conectar_sftp_via_proxy()
-        sftp = ssh.open_sftp()
-        
-        # Navega para o diretório remoto
-        print(f"📂 Acessando pasta remota: {SFTP_PASTA_REMOTA}")
-        sftp.chdir(SFTP_PASTA_REMOTA)
-        
-        # Lista arquivos remotos
-        arquivos_remotos = sftp.listdir()
-        arquivos_excel = [f for f in arquivos_remotos if f.endswith(('.xlsx', '.xls'))]
-        
-        # LÓGICA DE PRIMEIRA EXECUÇÃO (IGNORA EXISTENTES)
-        if not historico and arquivos_excel:
-            print("🆕 Primeira execução detectada! Adicionando todos os arquivos atualmente no SFTP ao histórico para ignorá-los...")
-            for nome_arquivo in arquivos_excel:
-                registrar_no_historico(nome_arquivo)
-                print(f"  ✓ {nome_arquivo} marcado como já lido (ignorado)")
-            print(f"✅ {len(arquivos_excel)} arquivos existentes marcados no histórico. O script irá processar apenas novas planilhas que chegarem a partir de agora!")
-            sftp.close()
-            return
-        
-        novos_arquivos = [f for f in arquivos_excel if f not in historico]
-        
-        if not novos_arquivos:
-            print("ℹ️ Nenhum arquivo novo encontrado para processar no SFTP.")
-            sftp.close()
-            return
-
-        print(f"🔍 Encontrados {len(novos_arquivos)} novos arquivos para download: {novos_arquivos}")
-
-        # 2. Downloads e Processamento Sequencial
-        for nome_arquivo in novos_arquivos:
-            caminho_local = os.path.join(PASTA_TEMP_LOCAL, nome_arquivo)
+    while True:
+        # Certifica-se de que a pasta temporária exista
+        if not os.path.exists(PASTA_TEMP_LOCAL):
+            os.makedirs(PASTA_TEMP_LOCAL)
             
-            try:
-                print(f"\n📥 Baixando {nome_arquivo}...")
-                sftp.get(nome_arquivo, caminho_local)
-                print(f"✅ Download finalizado: {nome_arquivo}")
-                
-                # Executa o processamento do Excel para o Banco de Dados
-                sucesso = processar_arquivo_excel(caminho_local, nome_arquivo)
-                
-                if sucesso:
-                    arquivos_processados.append(nome_arquivo)
-                else:
-                    print(f"⚠️ Processamento mal sucedido para {nome_arquivo}. Não adicionado ao histórico.")
-                    
-            except Exception as e:
-                msg = f"Falha ao baixar/processar arquivo remoto {nome_arquivo}"
-                print(f"❌ {msg}: {e}")
-                enviar_alerta_n8n(msg, str(e))
-            finally:
-                # Remove o arquivo local baixado imediatamente para economizar espaço
-                if os.path.exists(caminho_local):
-                    os.remove(caminho_local)
-                    print(f"🗑️ Arquivo temporário {nome_arquivo} removido localmente.")
+        historico = carregar_historico()
+        ssh = None
+        arquivos_processados = []
 
-        sftp.close()
-
-    except Exception as e:
-        msg = "Falha catastrófica na rotina de automação"
-        print(f"💥 {msg}: {e}")
-        enviar_alerta_n8n(msg, str(e))
-    finally:
-        if ssh:
-            ssh.close()
-            print("🔒 Conexão SFTP encerrada.")
-            
-        # Garante a limpeza de arquivos temporários órfãos em caso de erro no loop
         try:
-            if os.path.exists(PASTA_TEMP_LOCAL):
-                for f in os.listdir(PASTA_TEMP_LOCAL):
-                    caminho_f = os.path.join(PASTA_TEMP_LOCAL, f)
-                    if os.path.isfile(caminho_f):
-                        os.remove(caminho_f)
-                os.rmdir(PASTA_TEMP_LOCAL)
-                print("🧹 Pasta temporária local limpa e removida.")
-        except Exception:
-            pass
+            # 1. Conexão SFTP
+            ssh = conectar_sftp_via_proxy()
+            sftp = ssh.open_sftp()
             
-    print(f"\n✨ Processo finalizado! Arquivos atualizados nesta execução: {len(arquivos_processados)}")
+            # Navega para o diretório remoto
+            sftp.chdir(SFTP_PASTA_REMOTA)
+            
+            # Lista arquivos remotos
+            arquivos_remotos = sftp.listdir()
+            arquivos_excel = [f for f in arquivos_remotos if f.endswith(('.xlsx', '.xls'))]
+            
+            # LÓGICA DE PRIMEIRA EXECUÇÃO (IGNORA EXISTENTES)
+            if not historico and arquivos_excel:
+                print("🆕 Primeira execução detectada! Adicionando todos os arquivos atualmente no SFTP ao histórico para ignorá-los...")
+                for nome_arquivo in arquivos_excel:
+                    registrar_no_historico(nome_arquivo)
+                    print(f"  ✓ {nome_arquivo} marcado como já lido (ignorado)")
+                print(f"✅ {len(arquivos_excel)} arquivos existentes marcados no histórico. O script irá processar apenas novas planilhas que chegarem a partir de agora!")
+                sftp.close()
+                ssh.close()
+                time.sleep(intervalo)
+                continue
+            
+            novos_arquivos = [f for f in arquivos_excel if f not in historico]
+            
+            if novos_arquivos:
+                print(f"🔍 Encontrados {len(novos_arquivos)} novos arquivos para download: {novos_arquivos}")
+
+                # 2. Downloads e Processamento Sequencial
+                for nome_arquivo in novos_arquivos:
+                    caminho_local = os.path.join(PASTA_TEMP_LOCAL, nome_arquivo)
+                    
+                    try:
+                        print(f"\n📥 Baixando {nome_arquivo}...")
+                        sftp.get(nome_arquivo, caminho_local)
+                        print(f"✅ Download finalizado: {nome_arquivo}")
+                        
+                        # Executa o processamento do Excel para o Banco de Dados
+                        sucesso = processar_arquivo_excel(caminho_local, nome_arquivo)
+                        
+                        if sucesso:
+                            arquivos_processados.append(nome_arquivo)
+                        else:
+                            print(f"⚠️ Processamento mal sucedido para {nome_arquivo}. Não adicionado ao histórico.")
+                            
+                    except Exception as e:
+                        msg = f"Falha ao baixar/processar arquivo remoto {nome_arquivo}"
+                        print(f"❌ {msg}: {e}")
+                        enviar_alerta_n8n(msg, str(e))
+                    finally:
+                        # Remove o arquivo local baixado imediatamente para economizar espaço
+                        if os.path.exists(caminho_local):
+                            os.remove(caminho_local)
+                            print(f"🗑️ Arquivo temporário {nome_arquivo} removido localmente.")
+            
+            sftp.close()
+
+        except Exception as e:
+            # Em modo daemon/serviço contínuo, não queremos que o container trave se houver
+            # um erro de rede temporário (ex: VPN reconectando). Apenas alertamos o n8n e continuamos tentanto no próximo loop.
+            msg = "Falha temporária na rodada de monitoramento do SFTP"
+            print(f"⚠️ {msg}: {e}")
+            enviar_alerta_n8n(msg, str(e))
+        finally:
+            if ssh:
+                ssh.close()
+                
+            # Garante a limpeza de arquivos temporários órfãos em caso de erro no loop
+            try:
+                if os.path.exists(PASTA_TEMP_LOCAL):
+                    for f in os.listdir(PASTA_TEMP_LOCAL):
+                        caminho_f = os.path.join(PASTA_TEMP_LOCAL, f)
+                        if os.path.isfile(caminho_f):
+                            os.remove(caminho_f)
+                    os.rmdir(PASTA_TEMP_LOCAL)
+            except Exception:
+                pass
+                
+        if arquivos_processados:
+            print(f"\n✨ Rodada de monitoramento concluída! Arquivos atualizados nesta execução: {len(arquivos_processados)}")
+            
+        # Aguarda o intervalo antes de verificar novamente
+        time.sleep(intervalo)
 
 if __name__ == "__main__":
     main()
