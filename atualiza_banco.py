@@ -11,6 +11,7 @@ import socket
 import paramiko
 import json
 import urllib.request
+import datetime
 
 # --- CARREGADOR DE VARIÁVEIS DE AMBIENTE (ZERO-DEPENDENCY) ---
 def carregar_env_se_existir():
@@ -70,6 +71,9 @@ engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # 5. URL do Webhook do n8n para Alertas de Erro
 WEBHOOK_N8N_ERROS = obter_env("WEBHOOK_N8N_ERROS", "https://n8n-n8n.xjbony.easypanel.host/webhook/b7bb9042-97a1-48f5-8245-91cf28ffc412")
+
+# 6. Configuração de Agendamento Preciso no Minuto 5 de Cada Hora
+AGENDAMENTO_MINUTO_5 = obter_env("AGENDAMENTO_MINUTO_5", "True").lower() == "true"
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
@@ -239,11 +243,26 @@ def processar_arquivo_excel(caminho_completo, nome_arquivo):
         enviar_alerta_n8n(msg, str(e))
         return False
 
+def calcular_segundos_ate_proximo_minuto_5():
+    """Calcula quantos segundos faltam até o minuto 5 da próxima hora (ou da hora atual se ainda não passou)."""
+    agora = datetime.datetime.now()
+    alvo = agora.replace(minute=5, second=0, microsecond=0)
+    
+    if agora >= alvo:
+        alvo = alvo + datetime.timedelta(hours=1)
+        
+    delta = alvo - agora
+    return int(delta.total_seconds())
+
 # --- ORQUESTRADOR PRINCIPAL (MONITORAMENTO CONTÍNUO) ---
 
 def main():
     intervalo = int(obter_env("MONITOR_INTERVALO_SEGUNDOS", "30"))
-    print(f"🚀 Iniciando rotina de monitoramento contínuo do SFTP (Checando a cada {intervalo} segundos)...")
+    
+    if AGENDAMENTO_MINUTO_5:
+        print("🚀 Iniciando rotina de monitoramento contínuo do SFTP agendada (Executa SEMPRE no minuto 5 de cada hora)...")
+    else:
+        print(f"🚀 Iniciando rotina de monitoramento contínuo do SFTP (Checando a cada {intervalo} segundos)...")
     
     while True:
         # Certifica-se de que a pasta temporária exista
@@ -275,7 +294,14 @@ def main():
                 print(f"✅ {len(arquivos_excel)} arquivos existentes marcados no histórico. O script irá processar apenas novas planilhas que chegarem a partir de agora!")
                 sftp.close()
                 ssh.close()
-                time.sleep(intervalo)
+                
+                if AGENDAMENTO_MINUTO_5:
+                    tempo_espera = calcular_segundos_ate_proximo_minuto_5()
+                    proximo_horario = (datetime.datetime.now() + datetime.timedelta(seconds=tempo_espera)).strftime("%H:%M:%S")
+                    print(f"💤 Aguardando {tempo_espera} segundos até o próximo minuto 5 ({proximo_horario})...")
+                    time.sleep(tempo_espera)
+                else:
+                    time.sleep(intervalo)
                 continue
             
             novos_arquivos = [f for f in arquivos_excel if f not in historico]
@@ -337,7 +363,13 @@ def main():
             print(f"\n✨ Rodada de monitoramento concluída! Arquivos atualizados nesta execução: {len(arquivos_processados)}")
             
         # Aguarda o intervalo antes de verificar novamente
-        time.sleep(intervalo)
+        if AGENDAMENTO_MINUTO_5:
+            tempo_espera = calcular_segundos_ate_proximo_minuto_5()
+            proximo_horario = (datetime.datetime.now() + datetime.timedelta(seconds=tempo_espera)).strftime("%H:%M:%S")
+            print(f"💤 Aguardando {tempo_espera} segundos. Próxima checagem será executada às {proximo_horario} (Minuto 5)...")
+            time.sleep(tempo_espera)
+        else:
+            time.sleep(intervalo)
 
 if __name__ == "__main__":
     main()
