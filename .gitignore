@@ -15,6 +15,7 @@ skills-lock.json
 temp_downloads/
 data/
 *.txt
+!requirements.txt
 *.xlsx
 *.xls
 
