@@ -1,0 +1,37 @@
+# =========================================================================
+# GITIGNORE - AUTOMAÇÃO SFTP -> POSTGRESQL
+# =========================================================================
+
+# 1. Segurança e Credenciais (Mandatório)
+.env
+.env.*
+!.env.example
+
+# 2. Agentes e Skills do Gemini CLI
+.agents/
+skills-lock.json
+
+# 3. Dados Dinâmicos e Downloads Temporários
+temp_downloads/
+data/
+*.txt
+*.xlsx
+*.xls
+
+# 4. Arquivos de Bytecode e Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# 5. Ambientes Virtuais (se criados localmente)
+venv/
+.venv/
+env/
+ENV/
+
+# 6. Arquivos de Sistema Operacional
+.DS_Store
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  # Container do FortiClient VPN que expõe o proxy SOCKS5 e HTTP
+  forticlient:
+    image: henry42/forticlient-with-proxy:latest
+    container_name: fc_vpn_proxy
+    privileged: true # Exige privilégios elevados para gerenciar a interface de rede TUN da VPN
+    environment:
+      - VPNADDR=${VPN_ADDR} # Mapeia as variáveis do seu .env para as variáveis esperadas pela imagem
+      - VPNUSER=${VPN_USER}
+      - VPNPASS=${VPN_PASS}
+    ports:
+      - "127.0.0.1:1080:1080" # Porta do proxy SOCKS5 (exposta para a VPS)
+      - "127.0.0.1:8123:8123" # Porta do proxy HTTP (exposta para a VPS - opcional)
+    restart: unless-stopped
+
+  # Container da Automação (Script Python)
+  sftp_automation:
+    build: .
+    container_name: sftp_automation_app
+    environment:
+      - PROXY_HABILITADO=True
+      - PROXY_HOST=forticlient # Usa o DNS interno do Docker para se comunicar com o container forticlient
+      - PROXY_PORT=1080
+      - SFTP_HOST=${SFTP_HOST}
+      - SFTP_PORT=${SFTP_PORT}
+      - SFTP_USER=${SFTP_USER}
+      - SFTP_PASS=${SFTP_PASS}
+      - SFTP_PASTA_REMOTA=${SFTP_PASTA_REMOTA}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - WEBHOOK_N8N_ERROS=${WEBHOOK_N8N_ERROS}
+      - ARQUIVO_HISTORICO_LOCAL=/app/data/historico_arquivos_lidos.txt
+    volumes:
+      # Monta a pasta de histórico de forma persistente na VPS
+      - ./data:/app/data
+    depends_on:
+      - forticlient
