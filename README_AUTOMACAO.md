@@ -69,6 +69,8 @@ services:
     ports:
       - "127.0.0.1:1080:1080"
       - "127.0.0.1:8123:8123"
+    networks:
+      - easypanel
     restart: unless-stopped
 
   # Container da Automação (Script Python)
@@ -91,11 +93,19 @@ services:
       - DB_NAME=${DB_NAME}
       - WEBHOOK_N8N_ERROS=${WEBHOOK_N8N_ERROS}
       - ARQUIVO_HISTORICO_LOCAL=/app/data/historico_arquivos_lidos.txt
+      - AGENDAMENTO_MINUTO_5=${AGENDAMENTO_MINUTO_5}
     volumes:
       # Monta a pasta de histórico de forma persistente na VPS
       - ./data:/app/data
+    networks:
+      - easypanel
     depends_on:
       - forticlient
+
+# Registra a rede externa global do Easypanel para descoberta de serviços
+networks:
+  easypanel:
+    external: true
 ```
 
 Crie a pasta de volumes antes de rodar o Docker:

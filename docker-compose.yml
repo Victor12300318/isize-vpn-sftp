@@ -13,6 +13,8 @@ services:
     ports:
       - "127.0.0.1:1080:1080" # Porta do proxy SOCKS5 (exposta para a VPS)
       - "127.0.0.1:8123:8123" # Porta do proxy HTTP (exposta para a VPS - opcional)
+    networks:
+      - easypanel # Conecta à rede global do Easypanel para comunicação interna
     restart: unless-stopped
 
   # Container da Automação (Script Python)
@@ -35,8 +37,16 @@ services:
       - DB_NAME=${DB_NAME}
       - WEBHOOK_N8N_ERROS=${WEBHOOK_N8N_ERROS}
       - ARQUIVO_HISTORICO_LOCAL=/app/data/historico_arquivos_lidos.txt
+      - AGENDAMENTO_MINUTO_5=${AGENDAMENTO_MINUTO_5}
     volumes:
       # Monta a pasta de histórico de forma persistente na VPS
       - ./data:/app/data
+    networks:
+      - easypanel # Permite que a automação resolva e se comunique com o container "n8n_pgvector"
     depends_on:
       - forticlient
+
+# Registra a rede externa global do Easypanel para descoberta de serviços (Service Discovery)
+networks:
+  easypanel:
+    external: true
