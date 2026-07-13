@@ -27,42 +27,49 @@ def carregar_env_se_existir():
 # Carrega o .env antes de definir as configurações
 carregar_env_se_existir()
 
+def obter_env(chave, valor_padrao):
+    """Retorna o valor da variável de ambiente. Se estiver ausente ou vazia (''), usa o padrão."""
+    val = os.getenv(chave)
+    if val is None or val.strip() == "":
+        return valor_padrao
+    return val.strip()
+
 # --- CONFIGURAÇÃO ---
 
 # 1. Configuração do Proxy SOCKS5 (Docker FortiClient)
-PROXY_HABILITADO = os.getenv("PROXY_HABILITADO", "True").lower() == "true"
-PROXY_HOST = os.getenv("PROXY_HOST", "127.0.0.1")
-PROXY_PORT = int(os.getenv("PROXY_PORT", "1080"))
+PROXY_HABILITADO = obter_env("PROXY_HABILITADO", "True").lower() == "true"
+PROXY_HOST = obter_env("PROXY_HOST", "127.0.0.1")
+PROXY_PORT = int(obter_env("PROXY_PORT", "1080"))
 
 # 2. Configuração do Servidor SFTP (VPN)
-SFTP_HOST = os.getenv("SFTP_HOST", "sua_vpn.empresa.com")
-SFTP_PORT = int(os.getenv("SFTP_PORT", "22"))
-SFTP_USER = os.getenv("SFTP_USER", "seu_usuario")
-SFTP_PASS = os.getenv("SFTP_PASS", "sua_senha")
-SFTP_PASTA_REMOTA = os.getenv("SFTP_PASTA_REMOTA", "/opt/sftp")
+SFTP_HOST = obter_env("SFTP_HOST", "sua_vpn.empresa.com")
+SFTP_PORT = int(obter_env("SFTP_PORT", "22"))
+SFTP_USER = obter_env("SFTP_USER", "seu_usuario")
+SFTP_PASS = obter_env("SFTP_PASS", "sua_senha")
+SFTP_PASTA_REMOTA = obter_env("SFTP_PASTA_REMOTA", "/opt/sftp")
 
 # 3. Configuração de Arquivos Locais
 PASTA_TEMP_LOCAL = "./temp_downloads"
-ARQUIVO_HISTORICO_LOCAL = os.getenv("ARQUIVO_HISTORICO_LOCAL", "historico_arquivos_lidos.txt")
+ARQUIVO_HISTORICO_LOCAL = obter_env("ARQUIVO_HISTORICO_LOCAL", "historico_arquivos_lidos.txt")
 
 # 4. Configuração do Banco de Dados PostgreSQL (Conexão Direta)
 NOME_DA_TABELA_SQL = "isize"
 NOME_TABELA_TEMP = "isize_temp"
 COLUNA_PRINCIPAL_DE_BUSCA = "Proposta_iSize"
 
-DB_USER = os.getenv("DB_USER", "postgres")
+DB_USER = obter_env("DB_USER", "postgres")
 # Caso a senha possua caracteres especiais, fazemos o encoding para URL segura
-raw_db_pass = os.getenv("DB_PASS", "c6zawn8g30swqutta3za")
+raw_db_pass = obter_env("DB_PASS", "c6zawn8g30swqutta3za")
 DB_PASS = urllib.parse.quote_plus(raw_db_pass)
-DB_HOST = os.getenv("DB_HOST", "31.97.251.104")
-DB_PORT = os.getenv("DB_PORT", "5432")
-DB_NAME = os.getenv("DB_NAME", "n8n_novo")
+DB_HOST = obter_env("DB_HOST", "31.97.251.104")
+DB_PORT = obter_env("DB_PORT", "5432")
+DB_NAME = obter_env("DB_NAME", "n8n_novo")
 
 DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 
 # 5. URL do Webhook do n8n para Alertas de Erro
-WEBHOOK_N8N_ERROS = os.getenv("WEBHOOK_N8N_ERROS", "https://n8n-n8n.xjbony.easypanel.host/webhook/b7bb9042-97a1-48f5-8245-91cf28ffc412")
+WEBHOOK_N8N_ERROS = obter_env("WEBHOOK_N8N_ERROS", "https://n8n-n8n.xjbony.easypanel.host/webhook/b7bb9042-97a1-48f5-8245-91cf28ffc412")
 
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
