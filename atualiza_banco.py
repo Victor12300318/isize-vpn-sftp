@@ -243,6 +243,20 @@ def processar_arquivo_excel(caminho_completo, nome_arquivo):
         enviar_alerta_n8n(msg, str(e))
         return False
 
+def testar_conexao_banco():
+    """Tenta conectar ao banco de dados PostgreSQL para validar as credenciais e rede na inicialização."""
+    print("🔍 Testando conexão com o Banco de Dados PostgreSQL na inicialização...")
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        print("✅ Conexão com o Banco de Dados estabelecida com sucesso!")
+        return True
+    except Exception as e:
+        msg = "Falha de conexão com o Banco de Dados PostgreSQL na inicialização"
+        print(f"❌ {msg}: {e}")
+        enviar_alerta_n8n(msg, str(e))
+        return False
+
 def calcular_segundos_ate_proximo_minuto_5():
     """Calcula quantos segundos faltam até o minuto 5 da próxima hora (ou da hora atual se ainda não passou)."""
     agora = datetime.datetime.now()
@@ -257,6 +271,9 @@ def calcular_segundos_ate_proximo_minuto_5():
 # --- ORQUESTRADOR PRINCIPAL (MONITORAMENTO CONTÍNUO) ---
 
 def main():
+    # Testa a conexão com o banco de dados antes de iniciar o loop de monitoramento
+    testar_conexao_banco()
+    
     intervalo = int(obter_env("MONITOR_INTERVALO_SEGUNDOS", "30"))
     
     if AGENDAMENTO_MINUTO_5:
